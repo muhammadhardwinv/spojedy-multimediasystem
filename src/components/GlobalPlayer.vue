@@ -1,7 +1,8 @@
 <!-- @format -->
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, nextTick } from "vue";
 
 import {
 	currentMedia,
@@ -35,6 +36,8 @@ const progress = ref(0);
 
 const isVideoMode = ref(false);
 
+const videoRef = ref(null);
+
 /* ---------------- FORMAT TIME ---------------- */
 const formatTime = (time) => {
 	if (!time || isNaN(time)) return "0:00";
@@ -48,8 +51,29 @@ const formatTime = (time) => {
 	return `${minutes}:${seconds}`;
 };
 
+/* ---------------- VIDEO CHECK ---------------- */
+const hasVideo = computed(() => {
+	return currentMedia.value?.type?.startsWith("video");
+});
+
 /* ---------------- TOGGLE ---------------- */
 const togglePlayer = async () => {
+	// VIDEO MODE
+	if (isVideoMode.value && hasVideo.value && videoRef.value) {
+		if (videoRef.value.paused) {
+			await videoRef.value.play();
+
+			isPlaying.value = true;
+		} else {
+			videoRef.value.pause();
+
+			isPlaying.value = false;
+		}
+
+		return;
+	}
+
+	// AUDIO MODE
 	if (isPlaying.value) {
 		pause();
 	} else {
@@ -71,9 +95,19 @@ const toggleRepeat = () => {
 
 /* ---------------- SEEK ---------------- */
 const updateProgress = () => {
-	currentTime.value = audio.currentTime || 0;
+	// VIDEO MODE
+	if (isVideoMode.value && videoRef.value) {
+		currentTime.value = videoRef.value.currentTime || 0;
 
-	duration.value = audio.duration || 0;
+		duration.value = videoRef.value.duration || 0;
+	}
+
+	// AUDIO MODE
+	else {
+		currentTime.value = audio.currentTime || 0;
+
+		duration.value = audio.duration || 0;
+	}
 
 	if (duration.value > 0) {
 		progress.value = (currentTime.value / duration.value) * 100;
@@ -87,13 +121,18 @@ const seek = (e) => {
 
 	progress.value = value;
 
-	audio.currentTime = (value / 100) * duration.value;
-};
+	const seekTime = (value / 100) * duration.value;
 
-/* ---------------- VIDEO CHECK ---------------- */
-const hasVideo = computed(() => {
-	return currentMedia.value?.type?.startsWith("video");
-});
+	// VIDEO MODE
+	if (isVideoMode.value && videoRef.value) {
+		videoRef.value.currentTime = seekTime;
+	}
+
+	// AUDIO MODE
+	else {
+		audio.currentTime = seekTime;
+	}
+};
 
 /* ---------------- MEDIA LABEL ---------------- */
 const mediaLabel = computed(() => {
@@ -117,6 +156,65 @@ const mediaLabel = computed(() => {
 
 		default:
 			return "Unknown Source";
+	}
+});
+
+/* ---------------- TITLE ---------------- */
+watch([currentMedia, isPlaying], ([song, playing]) => {
+	if (!song) {
+		document.title = "Spojedy";
+		return;
+	}
+
+	const title = song.name || song.title || "Unknown";
+
+	document.title = playing ? `▶ Spojedy - ${title}` : `⏸ Spojedy - ${title}`;
+});
+
+/* ---------------- VIDEO MODE FIX ---------------- */
+watch(isVideoMode, async (enabled) => {
+	// EXIT VIDEO MODE
+	if (!enabled) {
+		if (videoRef.value) {
+			// sync back to audio
+			audio.currentTime = videoRef.value.currentTime || 0;
+
+			videoRef.value.pause();
+		}
+
+		if (isPlaying.value) {
+			await play();
+		}
+
+		return;
+	}
+
+	// NOT VIDEO
+	if (!hasVideo.value) return;
+
+	await nextTick();
+
+	if (!videoRef.value) return;
+
+	// STOP GLOBAL AUDIO
+	audio.pause();
+
+	// SYNC VIDEO
+	videoRef.value.currentTime = audio.currentTime || 0;
+
+	videoRef.value.volume = audio.volume || 1;
+
+	// PLAY VIDEO
+	if (isPlaying.value) {
+		await videoRef.value.play();
+	}
+});
+
+/* ---------------- TRACK CHANGE ---------------- */
+watch(currentMedia, () => {
+	// auto exit if next media isn't video
+	if (!currentMedia.value?.type?.startsWith("video")) {
+		isVideoMode.value = false;
 	}
 });
 
@@ -145,14 +243,20 @@ onUnmounted(() => {
 				v-if="isVideoMode"
 				class="aspect-video bg-black flex items-center justify-center"
 			>
+				<!-- VIDEO -->
 				<video
 					v-if="hasVideo"
+					ref="videoRef"
 					:src="currentMedia.src"
 					class="w-full max-h-[60vh]"
-					controls
-					autoplay
+					playsinline
+					preload="metadata"
+					:disablePictureInPicture="true"
+					controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
+					@timeupdate="updateProgress"
 				/>
 
+				<!-- NO VIDEO -->
 				<div
 					v-else
 					class="flex flex-col items-center justify-center gap-4 py-20"
@@ -303,6 +407,7 @@ onUnmounted(() => {
 
 						<!-- VIDEO -->
 						<button
+							v-if="hasVideo"
 							@click="isVideoMode = !isVideoMode"
 							class="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-center hover:bg-white/[0.06] transition"
 						>
@@ -327,5 +432,14 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
 	opacity: 0;
+}
+
+/* HIDE NATIVE VIDEO CONTROLS */
+video::-webkit-media-controls {
+	display: none !important;
+}
+
+video::-webkit-media-controls-enclosure {
+	display: none !important;
 }
 </style>

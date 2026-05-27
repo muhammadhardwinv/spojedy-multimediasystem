@@ -1,6 +1,8 @@
 <!-- @format -->
 
 <script setup>
+import { onMounted } from "vue";
+
 import {
 	Upload,
 	Play,
@@ -15,11 +17,17 @@ import {
 	localFiles,
 	addLocalFiles,
 	removeLocalFile,
+	loadFiles,
 } from "../store/localmedia";
 
 import { parseBlob } from "music-metadata-browser";
 
 import { setPlaylist, play, currentMedia, isPlaying } from "../store/player";
+
+/* ---------------- LOAD FILES ---------------- */
+onMounted(async () => {
+	await loadFiles();
+});
 
 /* ---------------- FORMAT SIZE ---------------- */
 const formatSize = (size) => {
@@ -42,8 +50,12 @@ const getFileTypeIcon = (type) => {
 
 	return File;
 };
+
+/* ---------------- HANDLE UPLOAD ---------------- */
 const handleUpload = async (event) => {
-	const uploaded = Array.from(event.target.files);
+	const uploaded = Array.from(event.target.files || []);
+
+	if (!uploaded.length) return;
 
 	const mapped = await Promise.all(
 		uploaded.map(async (file) => {
@@ -65,36 +77,40 @@ const handleUpload = async (event) => {
 				type: file.type,
 				size: file.size,
 
-				src: URL.createObjectURL(file),
-
 				source: "local",
 
 				genre,
 
 				file,
 			};
-		}),
+		})
 	);
 
-	addLocalFiles(mapped);
+	await addLocalFiles(mapped);
+
+	event.target.value = "";
 };
 
 /* ---------------- REMOVE ---------------- */
-const removeFile = (id) => {
-	const target = localFiles.value.find((f) => f.id === id);
-
-	if (target?.src) {
-		URL.revokeObjectURL(target.src);
-	}
-
-	removeLocalFile(id);
+const removeFile = async (id) => {
+	await removeLocalFile(id);
 };
 
-/* ---------------- PLAY SONG ---------------- */
-const playSong = async (song) => {
-	const index = localFiles.value.findIndex((s) => s.id === song.id);
+/* ---------------- PLAY MEDIA ---------------- */
+const playSong = async (media) => {
+	const playable = localFiles.value.filter(
+		(item) => item.type.startsWith("audio") || item.type.startsWith("video")
+	);
 
-	setPlaylist(localFiles.value, index);
+	const index = playable.findIndex((item) => item.id === media.id);
+
+	if (index === -1) return;
+
+	setPlaylist(playable, index);
+
+	document.querySelectorAll("video").forEach((v) => {
+		v.pause();
+	});
 
 	await play();
 };
@@ -109,7 +125,7 @@ const playSong = async (song) => {
 			<p class="text-white/50 mt-2">Upload and manage your media files.</p>
 		</div>
 
-		<!-- UPLOADER -->
+		<!-- UPLOAD -->
 		<label
 			class="border border-dashed border-white/20 hover:border-red-500 transition rounded-3xl p-10 flex flex-col items-center justify-center cursor-pointer bg-white/[0.03]"
 		>
@@ -134,7 +150,7 @@ const playSong = async (song) => {
 			</p>
 		</label>
 
-		<!-- FILE LIST -->
+		<!-- FILES -->
 		<div
 			v-if="localFiles.length"
 			class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-10"
@@ -155,12 +171,18 @@ const playSong = async (song) => {
 					/>
 
 					<!-- VIDEO -->
-					<video
+					<div
 						v-else-if="item.type.startsWith('video')"
-						:src="item.src"
-						class="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-						muted
-					/>
+						class="relative w-full h-full overflow-hidden"
+					>
+						<video
+							:src="item.src"
+							class="absolute inset-0 w-full h-full object-cover"
+							muted
+							playsinline
+							preload="metadata"
+						/>
+					</div>
 
 					<!-- AUDIO -->
 					<div
@@ -207,7 +229,7 @@ const playSong = async (song) => {
 						<Play v-else class="w-5 h-5 text-white ml-0.5" />
 					</button>
 
-					<!-- PLAYING BADGE -->
+					<!-- PLAYING -->
 					<div
 						v-if="currentMedia?.id === item.id && isPlaying"
 						class="absolute top-4 left-4 px-3 py-1 rounded-full bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-medium backdrop-blur"

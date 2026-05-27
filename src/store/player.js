@@ -1,7 +1,6 @@
 /** @format */
 import { ref } from "vue";
 
-/* ================= CORE STATE ================= */
 export const playlist = ref([]);
 export const currentIndex = ref(0);
 
@@ -13,15 +12,13 @@ export const isShuffleMode = ref(false);
 /**
  * repeatMode:
  * off  = stop at end
- * all  = loop playlist
+ * all  = loop <playl></playl>ist
  * one  = repeat current song
  */
 export const repeatMode = ref("off");
 
-/* ================= AUDIO INSTANCE ================= */
 export const audio = new Audio();
 
-/* ================= SYNC ================= */
 const sync = () => {
 	currentMedia.value = playlist.value[currentIndex.value] || null;
 
@@ -30,7 +27,6 @@ const sync = () => {
 	}
 };
 
-/* ================= SET PLAYLIST ================= */
 export const setPlaylist = (list = [], index = 0) => {
 	if (!Array.isArray(list) || list.length === 0) return;
 
@@ -40,11 +36,22 @@ export const setPlaylist = (list = [], index = 0) => {
 	sync();
 };
 
-/* ================= PLAY / PAUSE ================= */
 export const play = async () => {
-	if (!audio.src && currentMedia.value?.src) {
-		audio.src = currentMedia.value.src;
+	if (!currentMedia.value?.src) return;
+
+	// cleanup old media
+	if (audio) {
+		audio.pause();
+		audio.currentTime = 0;
 	}
+
+	audio.src = currentMedia.value.src;
+
+	// IMPORTANT: reset video elements in DOM (stop grid previews)
+	document.querySelectorAll("video").forEach((v) => {
+		v.pause();
+		v.currentTime = 0;
+	});
 
 	await audio.play();
 	isPlaying.value = true;
@@ -55,7 +62,6 @@ export const pause = () => {
 	isPlaying.value = false;
 };
 
-/* ================= SHUFFLE ================= */
 const getRandomIndex = () => {
 	if (playlist.value.length <= 1) return currentIndex.value;
 
@@ -67,7 +73,6 @@ const getRandomIndex = () => {
 	return i;
 };
 
-/* ================= NEXT TRACK ================= */
 export const nextTrack = async () => {
 	if (!playlist.value.length) return;
 
@@ -106,7 +111,6 @@ export const nextTrack = async () => {
 	pause();
 };
 
-/* ================= PREV TRACK ================= */
 export const prevTrack = async () => {
 	if (!playlist.value.length) return;
 
