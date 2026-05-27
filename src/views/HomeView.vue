@@ -17,30 +17,13 @@ const router = useRouter();
 const search = ref("");
 
 /* LOCAL LIBRARY */
-const musics = ref([
-	{
-		title: "APT.",
-		artist: "ROSÉ, Bruno Mars",
-		image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
-		src: "/local/apt.mp3",
-		type: "LOCAL",
-		hidden: false,
-	},
-	{
-		title: "Die With A Smile",
-		artist: "Lady Gaga, Bruno Mars",
-		image: "https://images.unsplash.com/photo-1501612780327-45045538702b",
-		src: "/local/die.mp3",
-		type: "LOCAL",
-		hidden: false,
-	},
-]);
+const musics = ref([]);
 
 /* FILTERED LOCAL */
 const filtered = computed(() =>
 	musics.value
 		.filter((m) => m.title.toLowerCase().includes(search.value.toLowerCase()))
-		.filter((m) => !m.hidden),
+		.filter((m) => !m.hidden)
 );
 
 /* API STATE */
@@ -51,7 +34,7 @@ const upcoming = ref([]);
 const fetchAPI = async () => {
 	try {
 		const res = await fetch(
-			"https://itunes.apple.com/search?term=pop&media=music&limit=12",
+			"https://itunes.apple.com/search?term=pop&media=music&limit=12"
 		);
 
 		const data = await res.json();
@@ -85,7 +68,7 @@ onMounted(fetchAPI);
 
 /* MIX */
 const yourMix = computed(() =>
-	favorites.value.filter((f) => !f.hidden).slice(0, 8),
+	favorites.value.filter((f) => !f.hidden).slice(0, 8)
 );
 
 /* PLAY */
