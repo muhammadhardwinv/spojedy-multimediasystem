@@ -72,7 +72,7 @@ const handleUpload = async (event) => {
 
 				file,
 			};
-		}),
+		})
 	);
 
 	addLocalFiles(mapped);
@@ -155,7 +155,6 @@ const playSong = async (song) => {
 						v-else-if="item.type.startsWith('video')"
 						:src="item.src"
 						class="w-full h-full object-cover"
-						controls
 					/>
 
 					<!-- AUDIO -->

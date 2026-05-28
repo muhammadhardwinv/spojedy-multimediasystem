@@ -1,7 +1,7 @@
 <!-- @format -->
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 
 import {
 	Play,
@@ -15,6 +15,11 @@ import {
 	Volume2,
 	ListMusic,
 	Music2,
+	Tv,
+	Heart,
+	Headphones,
+	Video,
+	X,
 } from "lucide-vue-next";
 
 import {
@@ -24,6 +29,12 @@ import {
 	isPlaying,
 	isShuffleMode,
 	repeatMode,
+	currentTime,
+	duration,
+	progress,
+	isSeeking,
+	volume,
+	setVolume,
 	play,
 	pause,
 	nextTrack,
@@ -34,24 +45,45 @@ import {
 
 import { toggleFavorite, isFavorite } from "../store/favorites";
 
-/* ---------------- STATE ---------------- */
-const progress = ref(0);
-const currentTime = ref(0);
-const duration = ref(0);
+/* GLOBAL THEME */
+import { currentTheme } from "../store/user";
+
+/* ---------------- THEME ---------------- */
+const theme = computed(() => currentTheme.value);
 
 const carouselRef = ref(null);
 
-/* ---------------- VIEW ---------------- */
+const videoRef = ref(null);
+
+/* ---------------- PLAYLIST ---------------- */
 const playlistView = computed(() => playlist.value);
+
+/* ---------------- VIDEO CHECK ---------------- */
+const isVideoFormat = (mediaItem) => {
+	if (!mediaItem) return false;
+
+	return (
+		mediaItem.type?.startsWith("video/") ||
+		mediaItem.videoUrl ||
+		mediaItem.name?.match(/\.(mp4|mkv|webm|mov|avi)$/i) ||
+		mediaItem.title?.match(/\.(mp4|mkv|webm|mov|avi)$/i)
+	);
+};
 
 /* ---------------- ACTIVE CHECK ---------------- */
 const isActive = (song) => {
 	if (!currentMedia.value || !song) return false;
 
-	return (
-		currentMedia.value.title === song.title &&
-		currentMedia.value.artist === song.artist
-	);
+	const currentTitle =
+		currentMedia.value.title || currentMedia.value.name || "";
+
+	const targetTitle = song.title || song.name || "";
+
+	const currentArtist = currentMedia.value.artist || "Unknown Artist";
+
+	const targetArtist = song.artist || "Unknown Artist";
+
+	return currentTitle === targetTitle && currentArtist === targetArtist;
 };
 
 /* ---------------- PLAY TRACK ---------------- */
@@ -65,13 +97,21 @@ const playTrack = async (song, index) => {
 	}
 };
 
-/* ---------------- CONTROLS ---------------- */
+/* ---------------- TOGGLE PLAY ---------------- */
 const togglePlay = async () => {
 	if (isPlaying.value) {
 		pause();
+
+		if (isVideoFormat(currentMedia.value) && videoRef.value) {
+			videoRef.value.pause();
+		}
 	} else {
 		try {
 			await play();
+
+			if (isVideoFormat(currentMedia.value) && videoRef.value) {
+				videoRef.value.play().catch(() => {});
+			}
 		} catch (err) {
 			console.log(err);
 		}
@@ -79,9 +119,10 @@ const togglePlay = async () => {
 };
 
 const next = () => nextTrack();
+
 const prev = () => prevTrack();
 
-/* ---------------- LOOP UI ---------------- */
+/* ---------------- REPEAT ---------------- */
 const toggleRepeat = () => {
 	const modes = ["off", "all", "one"];
 
@@ -103,11 +144,11 @@ const repeatClass = computed(() => {
 
 	if (repeatMode.value === "all") return "text-red-500";
 
-	return "text-white/40";
+	return theme.value.textMuted;
 });
 
 const repeatIcon = computed(() =>
-	repeatMode.value === "one" ? Repeat1 : Repeat,
+	repeatMode.value === "one" ? Repeat1 : Repeat
 );
 
 /* ---------------- FORMAT TIME ---------------- */
@@ -123,118 +164,117 @@ const formatTime = (time) => {
 	return `${minutes}:${seconds}`;
 };
 
-/* ---------------- AUDIO PROGRESS ---------------- */
-const updateProgress = () => {
-	if (!audio) return;
-
-	currentTime.value = audio.currentTime || 0;
-
-	duration.value = audio.duration || 0;
-
-	if (audio.duration > 0) {
-		progress.value = (audio.currentTime / audio.duration) * 100;
-	}
-};
-
 /* ---------------- SEEK ---------------- */
 const seek = (e) => {
-	if (!audio || !audio.duration) return;
+	isSeeking.value = true;
 
 	const value = parseFloat(e.target.value);
 
-	const seekTime = (value / 100) * audio.duration;
+	if (isVideoFormat(currentMedia.value) && videoRef.value) {
+		if (!videoRef.value.duration) return;
 
-	audio.currentTime = seekTime;
+		const seekTime = (value / 100) * videoRef.value.duration;
 
-	progress.value = value;
+		videoRef.value.currentTime = seekTime;
 
-	currentTime.value = seekTime;
+		currentTime.value = seekTime;
+
+		progress.value = value;
+	} else if (audio && duration.value) {
+		const seekTime = (value / 100) * duration.value;
+
+		audio.currentTime = seekTime;
+
+		currentTime.value = seekTime;
+
+		progress.value = value;
+	}
+
+	isSeeking.value = false;
 };
 
-/* ---------------- WATCH SONG CHANGE ---------------- */
+/* ---------------- VIDEO EVENTS ---------------- */
+const onVideoTimeUpdate = () => {
+	if (isVideoFormat(currentMedia.value) && videoRef.value && !isSeeking.value) {
+		currentTime.value = videoRef.value.currentTime || 0;
+
+		duration.value = videoRef.value.duration || 0;
+
+		if (videoRef.value.duration > 0) {
+			progress.value =
+				(videoRef.value.currentTime / videoRef.value.duration) * 100;
+		}
+	}
+};
+
+const onVideoLoadedMetadata = () => {
+	if (isVideoFormat(currentMedia.value) && videoRef.value) {
+		currentTime.value = 0;
+
+		duration.value = videoRef.value.duration || 0;
+
+		progress.value = 0;
+
+		videoRef.value.volume = volume.value;
+	}
+};
+
+/* ---------------- WATCHERS ---------------- */
+watch(isPlaying, (playing) => {
+	if (isVideoFormat(currentMedia.value) && videoRef.value) {
+		if (playing) {
+			videoRef.value.play().catch(() => {});
+		} else {
+			videoRef.value.pause();
+		}
+	}
+});
+
 watch(
 	() => currentMedia.value,
-	async () => {
-		if (!audio) return;
+	async (newMedia) => {
+		if (isVideoFormat(newMedia)) {
+			await nextTick();
 
-		updateProgress();
-
-		if (isPlaying.value) {
-			try {
-				await audio.play();
-			} catch (err) {
-				console.log(err);
+			if (videoRef.value && isPlaying.value) {
+				videoRef.value.play().catch(() => {});
 			}
 		}
-	},
-	{ immediate: true },
+	}
 );
 
-/* ---------------- AUTO SCROLL ---------------- */
 watch(currentIndex, async (i) => {
 	await nextTick();
 
 	const container = carouselRef.value;
-
 	if (!container) return;
 
 	const items = container.querySelectorAll("[data-song]");
-
 	const el = items[i];
 
+	// Simply do nothing here, or highlight the element via CSS/Classes
+	// instead of forcing the browser to scroll.
 	if (!el) return;
-
-	el.scrollIntoView({
-		behavior: "smooth",
-		inline: "center",
-		block: "nearest",
-	});
-});
-
-/* ---------------- AUDIO EVENTS ---------------- */
-const setupAudioEvents = () => {
-	if (!audio) return;
-
-	audio.addEventListener("timeupdate", updateProgress);
-
-	audio.addEventListener("loadedmetadata", updateProgress);
-
-	audio.addEventListener("durationchange", updateProgress);
-};
-
-const cleanupAudioEvents = () => {
-	if (!audio) return;
-
-	audio.removeEventListener("timeupdate", updateProgress);
-
-	audio.removeEventListener("loadedmetadata", updateProgress);
-
-	audio.removeEventListener("durationchange", updateProgress);
-};
-
-onMounted(() => {
-	setupAudioEvents();
-	updateProgress();
-});
-
-onUnmounted(() => {
-	cleanupAudioEvents();
 });
 </script>
 
 <template>
 	<div
-		class="min-h-screen bg-black text-white px-6 py-10 pb-40 overflow-x-hidden"
+		class="min-h-screen px-6 py-10 pb-40 overflow-x-hidden relative transition-all duration-300"
+		:class="[theme.bg, theme.text]"
 	>
-		<!-- TOP -->
 		<div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-10 items-start">
-			<!-- LEFT PLAYER -->
+			<!-- PLAYER PANEL -->
 			<div class="w-full lg:w-[380px] lg:sticky lg:top-8 flex-shrink-0">
 				<div
-					class="rounded-[32px] overflow-hidden border border-white/10 bg-white/[0.04] backdrop-blur-xl"
+					:class="[
+						theme.card,
+						theme.border,
+						'rounded-[32px] overflow-hidden border backdrop-blur-xl',
+					]"
 				>
-					<!-- IMAGE -->
-					<div class="relative aspect-square overflow-hidden">
+					<!-- COVER -->
+					<div class="relative aspect-square overflow-hidden bg-black">
 						<img
 							v-if="currentMedia?.image"
 							:src="currentMedia.image"
@@ -243,32 +283,53 @@ onUnmounted(() => {
 
 						<div
 							v-else
-							class="w-full h-full flex items-center justify-center bg-white/[0.03]"
+							class="w-full h-full flex items-center justify-center"
+							:class="theme.card"
 						>
-							<Music2 class="w-20 h-20 text-white/20" />
+							<Music2 class="w-20 h-20 opacity-20" />
 						</div>
 
 						<div
-							class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"
+							class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent pointer-events-none"
 						/>
 
+						<!-- STATUS -->
 						<div
 							v-if="isPlaying"
-							class="absolute top-5 left-5 px-3 py-1 rounded-full bg-green-500/20 border border-green-500/30 text-xs text-green-400 backdrop-blur-md"
+							class="absolute top-5 left-5 px-3 py-1 rounded-full text-xs backdrop-blur-md z-10"
+							:class="theme.tabActive"
 						>
-							Now Playing
+							{{
+								isVideoFormat(currentMedia)
+									? "Video Mode Active"
+									: "Now Playing"
+							}}
+						</div>
+
+						<!-- MEDIA TYPE -->
+						<div class="absolute top-5 right-5 z-10">
+							<div
+								class="p-2 rounded-full bg-black/60 border backdrop-blur-md flex items-center justify-center"
+								:class="theme.border"
+							>
+								<Tv
+									v-if="isVideoFormat(currentMedia)"
+									class="w-4 h-4 text-red-400"
+								/>
+
+								<Headphones v-else class="w-4 h-4 text-green-400" />
+							</div>
 						</div>
 					</div>
 
-					<!-- CONTENT -->
+					<!-- PLAYER BODY -->
 					<div class="p-6">
-						<!-- TITLE -->
 						<div>
 							<h1 class="text-2xl font-bold truncate">
-								{{ currentMedia?.title || "No Track" }}
+								{{ currentMedia?.title || currentMedia?.name || "No Track" }}
 							</h1>
 
-							<p class="text-white/50 mt-1 truncate">
+							<p class="mt-1 truncate" :class="theme.textMuted">
 								{{ currentMedia?.artist || "Unknown Artist" }}
 							</p>
 						</div>
@@ -285,48 +346,53 @@ onUnmounted(() => {
 								class="w-full accent-red-500 cursor-pointer"
 							/>
 
-							<div class="flex justify-between text-xs text-white/40 mt-2">
-								<span>{{ formatTime(currentTime) }}</span>
+							<div
+								class="flex justify-between text-xs mt-2"
+								:class="theme.textMuted"
+							>
+								<span>
+									{{ formatTime(currentTime) }}
+								</span>
 
-								<span>{{ formatTime(duration) }}</span>
+								<span>
+									{{ formatTime(duration) }}
+								</span>
 							</div>
 						</div>
 
 						<!-- CONTROLS -->
 						<div class="mt-8">
 							<div class="flex items-center justify-center gap-5">
-								<!-- SHUFFLE -->
 								<button
 									@click="isShuffleMode = !isShuffleMode"
 									class="transition hover:scale-110"
 								>
 									<Shuffle
 										class="w-5 h-5"
-										:class="isShuffleMode ? 'text-red-500' : 'text-white/40'"
+										:class="isShuffleMode ? 'text-red-500' : theme.textMuted"
 									/>
 								</button>
 
-								<!-- PREV -->
 								<button @click="prev" class="hover:scale-110 transition">
 									<SkipBack class="w-7 h-7" />
 								</button>
 
-								<!-- PLAY -->
 								<button
 									@click="togglePlay"
-									class="w-16 h-16 rounded-full bg-red-500 hover:bg-red-400 transition flex items-center justify-center shadow-lg shadow-red-500/30"
+									:class="[
+										theme.accent,
+										'w-16 h-16 rounded-full transition flex items-center justify-center shadow-lg hover:scale-105',
+									]"
 								>
-									<Pause v-if="isPlaying" class="w-8 h-8 text-white" />
+									<Pause v-if="isPlaying" class="w-8 h-8" />
 
-									<Play v-else class="w-8 h-8 text-white ml-1" />
+									<Play v-else class="w-8 h-8 ml-1" />
 								</button>
 
-								<!-- NEXT -->
 								<button @click="next" class="hover:scale-110 transition">
 									<SkipForward class="w-7 h-7" />
 								</button>
 
-								<!-- REPEAT -->
 								<button
 									@click="toggleRepeat"
 									class="transition hover:scale-110 relative"
@@ -346,38 +412,46 @@ onUnmounted(() => {
 								</button>
 							</div>
 
-							<!-- EXTRA -->
+							<!-- BOTTOM ACTIONS -->
 							<div class="mt-8 flex items-center justify-between gap-4">
-								<!-- FAVORITE -->
 								<button
 									@click="toggleFavorite(currentMedia)"
-									class="flex items-center gap-2 px-4 py-3 rounded-2xl bg-white/[0.03] border border-white/10 hover:bg-white/[0.06] transition"
+									:class="[
+										theme.card,
+										theme.border,
+										'flex items-center gap-2 px-4 py-3 rounded-2xl border transition hover:scale-[1.02]',
+									]"
 								>
-									<CirclePlus
-										class="w-5 h-5"
+									<!-- Dynamic Icon: Heart if favorited, CirclePlus if not -->
+									<component
+										:is="isFavorite(currentMedia) ? Heart : CirclePlus"
+										class="w-5 h-5 transition-colors duration-300"
 										:class="
 											isFavorite(currentMedia)
-												? 'text-red-500'
-												: 'text-white/60'
+												? 'text-red-500 fill-red-500'
+												: theme.textMuted
 										"
 									/>
 
 									<span class="text-sm"> Favorite </span>
 								</button>
 
-								<!-- VOLUME -->
 								<div
-									class="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/[0.03] border border-white/10"
+									:class="[
+										theme.card,
+										theme.border,
+										'flex items-center gap-3 px-4 py-3 rounded-2xl border',
+									]"
 								>
-									<Volume2 class="w-4 h-4 text-white/50" />
+									<Volume2 class="w-4 h-4" :class="theme.textMuted" />
 
 									<input
 										type="range"
 										min="0"
 										max="1"
 										step="0.01"
-										:value="audio.volume"
-										@input="audio.volume = Number($event.target.value)"
+										:value="volume"
+										@input="(e) => setVolume(parseFloat(e.target.value))"
 										class="w-24 accent-red-500"
 									/>
 								</div>
@@ -387,40 +461,45 @@ onUnmounted(() => {
 				</div>
 			</div>
 
-			<!-- RIGHT PLAYLIST -->
+			<!-- PLAYLIST -->
 			<div class="flex-1 min-w-0 space-y-6">
 				<!-- HEADER -->
 				<div class="flex items-center gap-3">
 					<div
-						class="w-14 h-14 rounded-2xl bg-red-500/20 flex items-center justify-center"
+						:class="[
+							theme.card,
+							theme.border,
+							'w-14 h-14 rounded-2xl border flex items-center justify-center',
+						]"
 					>
-						<ListMusic class="w-7 h-7 text-red-400" />
+						<ListMusic class="w-7 h-7" />
 					</div>
 
 					<div>
 						<h2 class="text-3xl font-bold">Playlist Queue</h2>
 
-						<p class="text-white/40">
-							{{ playlistView.length }} tracks available
+						<p :class="theme.textMuted">
+							{{ playlistView.length }}
+							tracks available
 						</p>
 					</div>
 				</div>
 
-				<!-- LIST -->
+				<!-- SONGS -->
 				<div ref="carouselRef" class="space-y-4">
 					<div
 						v-for="(song, index) in playlistView"
 						:key="index"
 						data-song
 						@click="playTrack(song, index)"
-						class="group flex items-center gap-5 rounded-3xl p-4 border transition cursor-pointer"
-						:class="
-							isActive(song)
-								? 'bg-red-500/10 border-red-500/30 scale-[1.01]'
-								: 'bg-white/[0.03] border-white/10 hover:border-red-500/30 hover:bg-white/[0.05]'
-						"
+						:class="[
+							theme.card,
+							theme.border,
+							'group flex items-center gap-5 rounded-3xl p-4 border transition-all duration-300 cursor-pointer hover:scale-[1.01]',
+							isActive(song) ? `${theme.tabActive} shadow-lg` : '',
+						]"
 					>
-						<!-- THUMB -->
+						<!-- COVER -->
 						<div
 							class="relative w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0"
 						>
@@ -432,9 +511,10 @@ onUnmounted(() => {
 
 							<div
 								v-else
-								class="w-full h-full bg-white/[0.04] flex items-center justify-center"
+								class="w-full h-full flex items-center justify-center"
+								:class="theme.card"
 							>
-								<Music2 class="w-8 h-8 text-white/30" />
+								<Music2 class="w-8 h-8 opacity-30" />
 							</div>
 
 							<div
@@ -442,14 +522,14 @@ onUnmounted(() => {
 							/>
 
 							<button
-								class="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+								:class="[
+									theme.accent,
+									'absolute bottom-2 right-2 w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition',
+								]"
 							>
-								<Pause
-									v-if="isActive(song) && isPlaying"
-									class="w-5 h-5 text-white"
-								/>
+								<Pause v-if="isActive(song) && isPlaying" class="w-5 h-5" />
 
-								<Play v-else class="w-5 h-5 text-white ml-0.5" />
+								<Play v-else class="w-5 h-5 ml-0.5" />
 							</button>
 						</div>
 
@@ -459,32 +539,119 @@ onUnmounted(() => {
 								{{ song.title || song.name }}
 							</h3>
 
-							<p class="text-white/40 truncate mt-1">
+							<p class="truncate mt-1" :class="theme.textMuted">
 								{{ song.artist || "Unknown Artist" }}
 							</p>
 
-							<div class="flex items-center gap-2 mt-3 text-xs text-red-400">
-								<Music2 class="w-4 h-4" />
+							<div class="flex items-center gap-2 mt-3 text-xs">
+								<Tv v-if="isVideoFormat(song)" class="w-4 h-4 text-red-400" />
 
-								<span> Playlist Track </span>
+								<Music2 class="w-4 h-4" :class="theme.textMuted" />
+
+								<span
+									:class="
+										isVideoFormat(song) ? 'text-red-400' : theme.textMuted
+									"
+								>
+									{{ isVideoFormat(song) ? "Video Resource" : "Audio Track" }}
+								</span>
 							</div>
 						</div>
 
-						<!-- ACTIVE -->
-						<div
-							v-if="isActive(song)"
-							class="px-4 py-2 rounded-full text-sm border backdrop-blur-md"
-							:class="
-								isPlaying
-									? 'bg-green-500/10 border-green-500/20 text-green-400'
-									: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
-							"
-						>
-							{{ isPlaying ? "Playing" : "Paused" }}
+						<!-- STATUS -->
+						<div class="flex items-center gap-2">
+							<div
+								v-if="isActive(song)"
+								class="px-4 py-2 rounded-full text-sm border backdrop-blur-md"
+								:class="
+									isPlaying
+										? 'bg-green-500/10 border-green-500/20 text-green-400'
+										: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+								"
+							>
+								{{ isPlaying ? "Playing" : "Paused" }}
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
 		</div>
+
+		<!-- VIDEO MODAL -->
+		<transition name="pop-theater">
+			<div
+				v-if="currentMedia && isVideoFormat(currentMedia) && isPlaying"
+				class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-6 md:p-10"
+				@click="togglePlay"
+			>
+				<div
+					@click.stop
+					:class="[
+						theme.card,
+						theme.border,
+						'w-full max-w-5xl aspect-video border rounded-2xl overflow-hidden shadow-2xl flex flex-col relative bg-black',
+					]"
+				>
+					<!-- TOP -->
+					<div
+						class="absolute top-4 inset-x-4 z-30 flex items-center justify-between"
+					>
+						<div
+							class="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-2 max-w-[70%]"
+						>
+							<Video class="w-3.5 h-3.5 text-red-400 shrink-0" />
+
+							<span class="text-xs font-medium truncate">
+								{{ currentMedia.title || currentMedia.name }}
+							</span>
+						</div>
+
+						<button
+							@click="togglePlay"
+							class="w-8 h-8 rounded-xl bg-black/60 flex items-center justify-center transition-all hover:scale-105"
+						>
+							<X class="w-4 h-4" />
+						</button>
+					</div>
+
+					<!-- VIDEO -->
+					<div
+						class="flex-1 w-full h-full bg-black flex items-center justify-center relative"
+					>
+						<video
+							ref="videoRef"
+							:src="
+								currentMedia.videoUrl || currentMedia.url || currentMedia.src
+							"
+							class="w-full h-full object-contain"
+							controls
+							playsinline
+							@timeupdate="onVideoTimeUpdate"
+							@loadedmetadata="onVideoLoadedMetadata"
+						/>
+					</div>
+				</div>
+			</div>
+		</transition>
 	</div>
 </template>
+
+<style scoped>
+* {
+	transition:
+		background-color 0.25s ease,
+		border-color 0.25s ease,
+		color 0.25s ease;
+}
+
+.pop-theater-enter-active,
+.pop-theater-leave-active {
+	transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pop-theater-enter-from,
+.pop-theater-leave-to {
+	opacity: 0;
+	transform: scale(0.97) translateY(8px);
+}
+</style>

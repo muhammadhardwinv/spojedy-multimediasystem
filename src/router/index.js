@@ -18,21 +18,114 @@ const routes = [
 	{
 		path: "/",
 		component: MainLayout,
+
 		children: [
-			{ path: "", name: "Home", component: HomeView },
-			{ path: "local", name: "Local", component: LocalView },
-			{ path: "search", name: "Search", component: SearchView },
-			{ path: "favorite", name: "Favorite", component: FavoriteView },
-			{ path: "trending", name: "Trending", component: TrendingView },
-			{ path: "shopping", name: "Shopping", component: ShoppingView },
-			{ path: "cart", name: "Cart", component: CartView },
-			{ path: "profile", name: "Profile", component: ProfileView },
-			{ path: "player", name: "Player", component: PlayerView },
+			{
+				path: "",
+				name: "Home",
+				component: HomeView,
+
+				meta: {
+					title: "Home",
+				},
+			},
+
+			{
+				path: "local",
+				name: "Local",
+				component: LocalView,
+
+				meta: {
+					title: "Local Library",
+				},
+			},
+
+			{
+				path: "search",
+				name: "Search",
+				component: SearchView,
+
+				meta: {
+					title: "Search",
+				},
+			},
+
+			{
+				path: "favorite",
+				name: "Favorite",
+				component: FavoriteView,
+
+				meta: {
+					title: "Favorites",
+				},
+			},
+
+			{
+				path: "trending",
+				name: "Trending",
+				component: TrendingView,
+
+				meta: {
+					title: "Trending",
+				},
+			},
+
+			{
+				path: "shopping",
+				name: "Shopping",
+				component: ShoppingView,
+
+				meta: {
+					title: "Shopping",
+				},
+			},
+
+			{
+				path: "cart",
+				name: "Cart",
+				component: CartView,
+
+				meta: {
+					title: "Cart",
+				},
+			},
+
+			{
+				path: "profile",
+				name: "Profile",
+				component: ProfileView,
+
+				meta: {
+					title: "Profile",
+				},
+			},
+
+			{
+				path: "player",
+				name: "Player",
+				component: PlayerView,
+
+				meta: {
+					title: "Now Playing",
+				},
+			},
 		],
 	},
 ];
 
-export default createRouter({
+const router = createRouter({
 	history: createWebHistory(),
 	routes,
 });
+
+/*
+|--------------------------------------------------------------------------
+| PAGE TITLE HANDLER
+|--------------------------------------------------------------------------
+*/
+
+router.afterEach((to) => {
+	document.title = to.meta.title ? `${to.meta.title} • Spojedy` : "Spojedy";
+});
+
+export default router;

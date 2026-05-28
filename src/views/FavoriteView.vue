@@ -1,6 +1,7 @@
 <!-- @format -->
 
 <script setup>
+import { currentTheme } from "../store/user";
 import { favorites, toggleFavorite } from "../store/favorites";
 import { setPlaylist } from "../store/player";
 import { useRouter } from "vue-router";
@@ -8,23 +9,25 @@ import { Play, Trash2 } from "lucide-vue-next";
 
 const router = useRouter();
 
-/* PLAY FROM FAVORITES (NOW USING PLAYLIST SYSTEM) */
+/* PLAY FROM FAVORITES */
 const playSong = (song) => {
 	if (!favorites.value.length) return;
 
 	const index = favorites.value.findIndex((m) => m.title === song.title);
-
 	setPlaylist(favorites.value, index >= 0 ? index : 0);
-
 	router.push("/player");
 };
 </script>
 
 <template>
-	<div class="p-8 text-white space-y-6">
-		<h1 class="text-3xl font-black">Your Favorites</h1>
+	<div class="p-8 space-y-6">
+		<h1 class="text-3xl font-black tracking-tight">Your Favorites</h1>
 
-		<div v-if="favorites.length === 0" class="text-white/50">
+		<div
+			v-if="favorites.length === 0"
+			:class="currentTheme.textMuted"
+			class="text-sm font-medium"
+		>
 			No favorite songs yet.
 		</div>
 
@@ -32,35 +35,40 @@ const playSong = (song) => {
 			<div
 				v-for="song in favorites"
 				:key="song.title"
-				class="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition"
+				class="flex items-center justify-between p-4 border rounded-xl backdrop-blur-md transition group shadow-sm"
+				:class="[currentTheme.card, currentTheme.border]"
 			>
-				<!-- LEFT -->
-				<div class="flex items-center gap-3">
+				<!-- LEFT CONTENT -->
+				<div class="flex items-center gap-3 min-w-0">
 					<img
 						:src="song.image || '/default.jpg'"
-						class="w-12 h-12 rounded-lg object-cover"
+						class="w-12 h-12 rounded-lg object-cover shadow-sm bg-zinc-500/10 shrink-0"
+						alt="Song artwork"
 					/>
-
-					<div>
-						<p class="font-semibold">{{ song.title }}</p>
-						<p class="text-sm text-white/60">{{ song.artist }}</p>
+					<div class="truncate">
+						<p class="font-bold truncate text-sm">{{ song.title }}</p>
+						<p class="text-xs truncate mt-0.5" :class="currentTheme.textMuted">
+							{{ song.artist }}
+						</p>
 					</div>
 				</div>
 
 				<!-- ACTIONS -->
-				<div class="flex items-center gap-3">
+				<div class="flex items-center gap-2.5 shrink-0">
 					<button
 						@click="playSong(song)"
-						class="p-2 bg-[#7F1D1D] rounded-lg hover:bg-red-600 transition"
+						class="p-2.5 rounded-xl transition flex items-center justify-center text-white shadow-md shadow-red-500/10"
+						:class="currentTheme.accent"
 					>
-						<Play size="18" />
+						<Play class="w-4 h-4 fill-current" />
 					</button>
 
 					<button
 						@click="toggleFavorite(song)"
-						class="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition"
+						class="p-2.5 rounded-xl border transition flex items-center justify-center hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20"
+						:class="currentTheme.border"
 					>
-						<Trash2 size="18" />
+						<Trash2 class="w-4 h-4" />
 					</button>
 				</div>
 			</div>

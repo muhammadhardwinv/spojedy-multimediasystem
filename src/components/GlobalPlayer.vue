@@ -1,445 +1,254 @@
 <!-- @format -->
 
 <script setup>
-import { watch } from "vue";
-import { computed, onMounted, onUnmounted, ref, nextTick } from "vue";
-
-import {
-	currentMedia,
-	isPlaying,
-	play,
-	pause,
-	audio,
-	nextTrack,
-	prevTrack,
-	isShuffleMode,
-	repeatMode,
-} from "../store/player";
-
+import { computed } from "vue";
 import {
 	Play,
 	Pause,
-	SkipBack,
 	SkipForward,
+	SkipBack,
+	Volume2,
+	VolumeX,
+	Music,
 	Shuffle,
 	Repeat,
 	Repeat1,
-	Video,
-	Music,
-	Volume2,
 } from "lucide-vue-next";
+import {
+	currentMedia,
+	isPlaying,
+	isShuffleMode,
+	repeatMode,
+	currentTime,
+	duration,
+	progress,
+	isSeeking,
+	volume,
+	setVolume,
+	play,
+	pause,
+	nextTrack,
+	prevTrack,
+	audio,
+} from "../store/player";
 
-/* ---------------- PLAYER ---------------- */
-const currentTime = ref(0);
-const duration = ref(0);
-const progress = ref(0);
-
-const isVideoMode = ref(false);
-
-const videoRef = ref(null);
-
-/* ---------------- FORMAT TIME ---------------- */
-const formatTime = (time) => {
-	if (!time || isNaN(time)) return "0:00";
-
-	const minutes = Math.floor(time / 60);
-
-	const seconds = Math.floor(time % 60)
-		.toString()
-		.padStart(2, "0");
-
-	return `${minutes}:${seconds}`;
+const formatTime = (secs) => {
+	if (isNaN(secs) || secs === null) return "0:00";
+	const minutes = Math.floor(secs / 60);
+	const seconds = Math.floor(secs % 60);
+	return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
 };
 
-/* ---------------- VIDEO CHECK ---------------- */
-const hasVideo = computed(() => {
-	return currentMedia.value?.type?.startsWith("video");
-});
+const seek = (event) => {
+	if (!audio || !duration.value) return;
+	isSeeking.value = true;
 
-/* ---------------- TOGGLE ---------------- */
-const togglePlayer = async () => {
-	// VIDEO MODE
-	if (isVideoMode.value && hasVideo.value && videoRef.value) {
-		if (videoRef.value.paused) {
-			await videoRef.value.play();
+	const val = parseFloat(event.target.value);
+	audio.currentTime = val;
+	currentTime.value = val;
+	progress.value = (val / duration.value) * 100;
 
-			isPlaying.value = true;
-		} else {
-			videoRef.value.pause();
+	isSeeking.value = false;
+};
 
-			isPlaying.value = false;
-		}
+const adjustVolume = (event) => {
+	setVolume(parseFloat(event.target.value));
+};
 
-		return;
-	}
-
-	// AUDIO MODE
-	if (isPlaying.value) {
-		pause();
+const toggleMute = () => {
+	if (volume.value > 0) {
+		setVolume(0);
 	} else {
-		await play();
+		setVolume(0.7);
 	}
 };
 
-const toggleShuffle = () => {
-	isShuffleMode.value = !isShuffleMode.value;
-};
-
+/* ---------------- LOOP / REPEAT SYSTEM ---------------- */
 const toggleRepeat = () => {
 	const modes = ["off", "all", "one"];
-
 	const i = modes.indexOf(repeatMode.value);
-
 	repeatMode.value = modes[(i + 1) % modes.length];
 };
 
-/* ---------------- SEEK ---------------- */
-const updateProgress = () => {
-	// VIDEO MODE
-	if (isVideoMode.value && videoRef.value) {
-		currentTime.value = videoRef.value.currentTime || 0;
-
-		duration.value = videoRef.value.duration || 0;
-	}
-
-	// AUDIO MODE
-	else {
-		currentTime.value = audio.currentTime || 0;
-
-		duration.value = audio.duration || 0;
-	}
-
-	if (duration.value > 0) {
-		progress.value = (currentTime.value / duration.value) * 100;
-	}
-};
-
-const seek = (e) => {
-	if (!duration.value) return;
-
-	const value = Number(e.target.value);
-
-	progress.value = value;
-
-	const seekTime = (value / 100) * duration.value;
-
-	// VIDEO MODE
-	if (isVideoMode.value && videoRef.value) {
-		videoRef.value.currentTime = seekTime;
-	}
-
-	// AUDIO MODE
-	else {
-		audio.currentTime = seekTime;
-	}
-};
-
-/* ---------------- MEDIA LABEL ---------------- */
-const mediaLabel = computed(() => {
-	if (!currentMedia.value) return "";
-
-	switch (currentMedia.value.source) {
-		case "local":
-			return "Local Media";
-
-		case "youtube":
-			return "YouTube";
-
-		case "spotify":
-			return "Spotify";
-
-		case "stream":
-			return "Streaming";
-
-		case "download":
-			return "Downloaded";
-
-		default:
-			return "Unknown Source";
-	}
+const repeatLabel = computed(() => {
+	if (repeatMode.value === "one") return "1";
+	if (repeatMode.value === "all") return "A";
+	return "";
 });
 
-/* ---------------- TITLE ---------------- */
-watch([currentMedia, isPlaying], ([song, playing]) => {
-	if (!song) {
-		document.title = "Spojedy";
-		return;
-	}
-
-	const title = song.name || song.title || "Unknown";
-
-	document.title = playing ? `▶ Spojedy - ${title}` : `⏸ Spojedy - ${title}`;
+const repeatClass = computed(() => {
+	if (repeatMode.value === "one") return "text-yellow-400";
+	if (repeatMode.value === "all") return "text-red-500";
+	return "text-zinc-400 hover:text-white";
 });
 
-/* ---------------- VIDEO MODE FIX ---------------- */
-watch(isVideoMode, async (enabled) => {
-	// EXIT VIDEO MODE
-	if (!enabled) {
-		if (videoRef.value) {
-			// sync back to audio
-			audio.currentTime = videoRef.value.currentTime || 0;
+const repeatIcon = computed(() =>
+	repeatMode.value === "one" ? Repeat1 : Repeat
+);
 
-			videoRef.value.pause();
-		}
-
-		if (isPlaying.value) {
-			await play();
-		}
-
-		return;
-	}
-
-	// NOT VIDEO
-	if (!hasVideo.value) return;
-
-	await nextTick();
-
-	if (!videoRef.value) return;
-
-	// STOP GLOBAL AUDIO
-	audio.pause();
-
-	// SYNC VIDEO
-	videoRef.value.currentTime = audio.currentTime || 0;
-
-	videoRef.value.volume = audio.volume || 1;
-
-	// PLAY VIDEO
-	if (isPlaying.value) {
-		await videoRef.value.play();
-	}
-});
-
-/* ---------------- TRACK CHANGE ---------------- */
-watch(currentMedia, () => {
-	// auto exit if next media isn't video
-	if (!currentMedia.value?.type?.startsWith("video")) {
-		isVideoMode.value = false;
-	}
-});
-
-/* ---------------- EVENTS ---------------- */
-onMounted(() => {
-	audio.addEventListener("timeupdate", updateProgress);
-
-	audio.addEventListener("loadedmetadata", updateProgress);
-});
-
-onUnmounted(() => {
-	audio.removeEventListener("timeupdate", updateProgress);
-
-	audio.removeEventListener("loadedmetadata", updateProgress);
+const isAudioFile = computed(() => {
+	if (!currentMedia.value) return false;
+	return (
+		currentMedia.value.type?.startsWith("audio") ||
+		!currentMedia.value.type?.startsWith("video")
+	);
 });
 </script>
 
 <template>
-	<transition name="fade">
-		<div
-			v-if="currentMedia"
-			class="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/90 backdrop-blur-2xl"
-		>
-			<!-- VIDEO MODE -->
+	<div class="fixed bottom-0 inset-x-0 z-40">
+		<transition name="slide-player">
 			<div
-				v-if="isVideoMode"
-				class="aspect-video bg-black flex items-center justify-center"
+				v-if="currentMedia && isAudioFile"
+				class="bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-900 text-zinc-200 px-4 py-3 md:px-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
 			>
-				<!-- VIDEO -->
-				<video
-					v-if="hasVideo"
-					ref="videoRef"
-					:src="currentMedia.src"
-					class="w-full max-h-[60vh]"
-					playsinline
-					preload="metadata"
-					:disablePictureInPicture="true"
-					controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
-					@timeupdate="updateProgress"
-				/>
-
-				<!-- NO VIDEO -->
 				<div
-					v-else
-					class="flex flex-col items-center justify-center gap-4 py-20"
+					class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4"
 				>
-					<img
-						v-if="currentMedia.image"
-						:src="currentMedia.image"
-						class="w-40 h-40 rounded-2xl object-cover opacity-60"
-					/>
-
-					<Video class="w-16 h-16 text-white/30" />
-
-					<p class="text-white/40">No video available</p>
-				</div>
-			</div>
-
-			<!-- PLAYER -->
-			<div class="p-4">
-				<div class="flex flex-col xl:flex-row xl:items-center gap-6">
-					<!-- LEFT -->
-					<div class="flex items-center gap-4 min-w-0 xl:w-[320px]">
-						<!-- THUMB -->
+					<div class="flex items-center gap-3 w-full md:w-1/4 min-w-0">
 						<div
-							class="relative w-16 h-16 rounded-2xl overflow-hidden bg-white/5 flex-shrink-0 border border-white/10"
+							class="w-12 h-12 rounded-xl bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0 shadow-inner"
 						>
-							<img
-								v-if="currentMedia.image"
-								:src="currentMedia.image"
-								class="w-full h-full object-cover"
-							/>
-
-							<div
-								v-else
-								class="w-full h-full flex items-center justify-center"
-							>
-								<Music class="text-white/40" />
-							</div>
-
-							<div
+							<Music
+								class="w-5 h-5 text-red-500 animate-pulse"
 								v-if="isPlaying"
-								class="absolute inset-0 bg-black/20 backdrop-blur-[1px]"
 							/>
+							<Music class="w-5 h-5 text-zinc-500" v-else />
 						</div>
-
-						<!-- INFO -->
-						<div class="min-w-0">
-							<p class="font-semibold text-white truncate text-sm">
-								{{ currentMedia.name || currentMedia.title }}
+						<div class="min-w-0 flex-1">
+							<p class="text-sm font-semibold text-zinc-100 truncate">
+								{{ currentMedia.title || currentMedia.name }}
 							</p>
-
-							<p class="text-xs text-white/40 truncate mt-1">
-								{{ mediaLabel }}
+							<p
+								class="text-xs text-zinc-500 truncate mt-0.5 uppercase tracking-wider font-mono"
+							>
+								{{ currentMedia.artist || "Audio File" }}
 							</p>
 						</div>
 					</div>
 
-					<!-- CENTER -->
-					<div class="flex-1 min-w-0">
-						<!-- CONTROLS -->
-						<div class="flex items-center justify-center gap-5 mb-3">
-							<!-- SHUFFLE -->
-							<button @click="toggleShuffle" class="transition hover:scale-110">
-								<Shuffle
-									class="w-5 h-5"
-									:class="isShuffleMode ? 'text-red-500' : 'text-white/40'"
-								/>
-							</button>
-
-							<!-- PREV -->
-							<button @click="prevTrack" class="hover:scale-110 transition">
-								<SkipBack class="w-6 h-6 text-white" />
-							</button>
-
-							<!-- PLAY -->
+					<div class="flex flex-col items-center gap-2 w-full md:w-2/4">
+						<div class="flex items-center gap-5">
 							<button
-								@click="togglePlayer"
-								class="w-14 h-14 rounded-full bg-red-500 hover:bg-red-400 transition flex items-center justify-center shadow-lg shadow-red-500/30 hover:scale-105"
+								@click="isShuffleMode = !isShuffleMode"
+								class="transition-colors p-1 relative"
+								title="Shuffle"
 							>
-								<Pause v-if="isPlaying" class="w-7 h-7 text-white" />
-
-								<Play v-else class="w-7 h-7 text-white ml-1" />
-							</button>
-
-							<!-- NEXT -->
-							<button @click="nextTrack" class="hover:scale-110 transition">
-								<SkipForward class="w-6 h-6 text-white" />
-							</button>
-
-							<!-- REPEAT -->
-							<button @click="toggleRepeat" class="transition hover:scale-110">
-								<Repeat1
-									v-if="repeatMode === 'one'"
-									class="w-5 h-5 text-yellow-400"
-								/>
-
-								<Repeat
-									v-else
-									class="w-5 h-5"
+								<Shuffle
+									class="w-4 h-4"
 									:class="
-										repeatMode === 'all' ? 'text-red-500' : 'text-white/40'
+										isShuffleMode
+											? 'text-red-500'
+											: 'text-zinc-400 hover:text-white'
 									"
 								/>
 							</button>
+
+							<button
+								@click="prevTrack"
+								class="text-zinc-400 hover:text-white transition-colors p-1"
+							>
+								<SkipBack class="w-5 h-5 fill-current" />
+							</button>
+
+							<button
+								@click="isPlaying ? pause() : play()"
+								class="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md"
+							>
+								<Pause
+									v-if="isPlaying"
+									class="w-4 h-4 fill-current text-black"
+								/>
+								<Play v-else class="w-4 h-4 fill-current text-black ml-0.5" />
+							</button>
+
+							<button
+								@click="nextTrack"
+								class="text-zinc-400 hover:text-white transition-colors p-1"
+							>
+								<SkipForward class="w-5 h-5 fill-current" />
+							</button>
+
+							<button
+								@click="toggleRepeat"
+								class="transition-colors p-1 relative flex items-center justify-center"
+								title="Repeat Mode"
+							>
+								<component
+									:is="repeatIcon"
+									class="w-4 h-4"
+									:class="repeatClass"
+								/>
+								<span
+									v-if="repeatLabel"
+									class="absolute -top-1.5 -right-1.5 text-[8px] font-bold px-1 bg-zinc-900 rounded-full border border-zinc-800 scale-90"
+									:class="repeatClass"
+								>
+									{{ repeatLabel }}
+								</span>
+							</button>
 						</div>
 
-						<!-- PROGRESS -->
-						<div class="flex items-center gap-3">
-							<span class="text-[11px] text-white/40 w-10 text-right">
-								{{ formatTime(currentTime) }}
-							</span>
-
+						<div
+							class="w-full flex items-center gap-3 text-[11px] font-mono font-medium text-zinc-500 select-none"
+						>
+							<span class="w-10 text-right text-zinc-400">{{
+								formatTime(currentTime)
+							}}</span>
 							<input
 								type="range"
 								min="0"
-								max="100"
-								step="0.1"
-								:value="progress"
+								:max="duration || 100"
+								:value="currentTime"
 								@input="seek"
-								class="flex-1 accent-red-500 cursor-pointer"
+								class="flex-1 accent-red-500 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer hover:accent-red-400 transition-all"
 							/>
-
-							<span class="text-[11px] text-white/40 w-10">
-								{{ formatTime(duration) }}
-							</span>
+							<span class="w-10 text-left">{{ formatTime(duration) }}</span>
 						</div>
 					</div>
 
-					<!-- RIGHT -->
 					<div
-						class="flex items-center justify-center xl:justify-end gap-4 xl:w-[220px]"
+						class="hidden md:flex items-center justify-end gap-3 w-full md:w-1/4"
 					>
-						<!-- VOLUME -->
-						<div
-							class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5"
-						>
-							<Volume2 class="w-4 h-4 text-white/50" />
-
-							<input
-								type="range"
-								min="0"
-								max="1"
-								step="0.01"
-								:value="audio.volume"
-								@input="audio.volume = Number($event.target.value)"
-								class="w-24 accent-red-500 cursor-pointer"
-							/>
-						</div>
-
-						<!-- VIDEO -->
 						<button
-							v-if="hasVideo"
-							@click="isVideoMode = !isVideoMode"
-							class="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-center hover:bg-white/[0.06] transition"
+							@click="toggleMute"
+							class="text-zinc-400 hover:text-white transition-colors"
 						>
-							<Video
-								class="w-5 h-5"
-								:class="isVideoMode ? 'text-red-500' : 'text-white/40'"
-							/>
+							<VolumeX v-if="volume === 0" class="w-4 h-4" />
+							<Volume2 v-else class="w-4 h-4" />
 						</button>
+						<input
+							type="range"
+							min="0"
+							max="1"
+							step="0.01"
+							:value="volume"
+							@input="adjustVolume"
+							class="w-20 accent-zinc-200 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+						/>
 					</div>
 				</div>
 			</div>
-		</div>
-	</transition>
+		</transition>
+	</div>
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-	transition: opacity 0.25s ease;
+.slide-player-enter-active,
+.slide-player-leave-active {
+	transition:
+		transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+		opacity 0.3s linear;
 }
-
-.fade-enter-from,
-.fade-leave-to {
+.slide-player-enter-from,
+.slide-player-leave-to {
+	transform: translateY(100%);
 	opacity: 0;
 }
-
-/* HIDE NATIVE VIDEO CONTROLS */
-video::-webkit-media-controls {
-	display: none !important;
+input[type="range"]::-webkit-slider-runnable-track {
+	background: transparent;
 }
-
-video::-webkit-media-controls-enclosure {
-	display: none !important;
+input[type="range"]::-moz-range-track {
+	background: transparent;
 }
 </style>
