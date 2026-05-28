@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Deep Space Synthetic Background -->
+    <linearGradient id="neonSky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0b001a" />
+      <stop offset="60%" stop-color="#14002a" />
+      <stop offset="100%" stop-color="#2c003e" />
+    </linearGradient>
+
+    <!-- Hot Neon Crimson/Pink Glow -->
+    <linearGradient id="neonCrimson" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#990000" />
+      <stop offset="30%" stop-color="#ff0055" />
+      <stop offset="100%" stop-color="#ff55a3" />
+    </linearGradient>
+
+    <!-- Retro Cyber Cyan Grid Line Color -->
+    <linearGradient id="cyberCyan" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#00f0ff" stop-opacity="0.5" />
+    </linearGradient>
+
+    <!-- Intense Rad Blur Filter for the Neon Glow -->
+    <filter id="synthGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Base App Canvas Container -->
+  <rect width="512" height="512" rx="120" fill="url(#neonSky)" />
+
+  <!-- Perspective Perspective Cyber Grid (Retro Synthwave Horizon) -->
+  <g stroke="url(#cyberCyan)" stroke-width="3" fill="none">
+    <!-- Horizontal Grid Lines -->
+    <line x1="0" y1="320" x2="512" y2="320" />
+    <line x1="0" y1="360" x2="512" y2="360" />
+    <line x1="0" y1="410" x2="512" y2="410" />
+    <line x1="0" y1="470" x2="512" y2="470" />
+    
+    <!-- Perspective Perspective Lines radiating from center horizon -->
+    <line x1="256" y1="280" x2="-100" y2="512" />
+    <line x1="256" y1="280" x2="50" y2="512" />
+    <line x1="256" y1="280" x2="180" y2="512" />
+    <line x1="256" y1="280" x2="332" y2="512" />
+    <line x1="256" y1="280" x2="462" y2="512" />
+    <line x1="256" y1="280" x2="612" y2="512" />
+  </g>
+
+  <!-- The Massive Neon Wave "S" System -->
+  <g transform="translate(256, 240)" filter="url(#synthGlow)">
+    
+    <!-- Outer Ambient Crimson Glow Trace -->
+    <path d="M-110,-100 C-110,-170 110,-170 110,-100 C110,-40 -110,0 -110,70 C-110,150 110,150 110,80" 
+          fill="none" stroke="#990000" stroke-width="68" stroke-linecap="round" opacity="0.4" />
+
+    <!-- Main Dynamic Hot Crimson / Pink Laser Track -->
+    <path d="M-110,-100 C-110,-170 110,-170 110,-100 C110,-40 -110,0 -110,70 C-110,150 110,150 110,80" 
+          fill="none" stroke="url(#neonCrimson)" stroke-width="52" stroke-linecap="round" />
+
+    <!-- Pure Electric White Core Wireframe Core -->
+    <path d="M-110,-100 C-110,-170 110,-170 110,-100 C110,-40 -110,0 -110,70 C-110,150 110,150 110,80" 
+          fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.9" />
+
+    <!-- Cyber Laser Play Triangle Central Core -->
+    <polygon points="-15,-40 35,-5 -15,30" fill="#00f0ff" filter="url(#synthGlow)"/>
+    <polygon points="-15,-40 35,-5 -15,30" fill="#ffffff" />
+  </g>
+  
+  <!-- Outer Frame Neon Cyber Border Trim -->
+  <rect width="512" height="512" rx="120" fill="none" stroke="#00f0ff" stroke-width="6" opacity="0.3" filter="url(#synthGlow)"/>
+  <rect width="512" height="512" rx="120" fill="none" stroke="#ff0055" stroke-width="2" opacity="0.5"/>
+</svg>
